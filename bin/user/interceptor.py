@@ -300,10 +300,11 @@ except ImportError:
         logmsg(syslog.LOG_ERR, msg)
 
 import weewx.drivers
+import weewx.units
 import weeutil.weeutil
 
 DRIVER_NAME = 'Interceptor'
-DRIVER_VERSION = '0.60'
+DRIVER_VERSION = '0.70'
 
 DEFAULT_ADDR = ''
 DEFAULT_PORT = 80
@@ -412,6 +413,8 @@ class Consumer(object):
         'extraHumid8': 'humidity_8',
         'soilTemp3': 'soil_temperature_3',
         'soilTemp4': 'soil_temperature_4',
+        'lightning_strike_count': 'lightning_strike_count',
+        'lightning_distance': 'lightning_distance',
     }
 
     def default_sensor_map(self):
@@ -2362,9 +2365,12 @@ class EcowittClient(Consumer):
             'wh25batt': 'wh25_battery',
             'wh26batt': 'wh26_battery',
             'wh40batt': 'wh40_battery',
+            'wh57batt': 'wh57_battery',
             'wh65batt': 'wh65_battery',
             'pm25_ch1': 'pm2_5',
             'pm25batt1': 'pm25_battery',
+            'lightning_num': 'lightning_strike_count',
+            'lightning': 'lightning_distance',
         }
 
         IGNORED_LABELS = [
@@ -2405,6 +2411,9 @@ class EcowittClient(Consumer):
                 # get all of the other parameters
                 for n in data:
                     if n in self.LABEL_MAP:
+                        # some measurements, like lightning are always present
+                        # but represented as an empty string. let's map that
+                        data[n] = None if data[n] == '' else data[n]
                         pkt[self.LABEL_MAP[n]] = self.decode_float(data[n])
                     elif n in self.IGNORED_LABELS:
                         val = data[n]
@@ -2419,6 +2428,13 @@ class EcowittClient(Consumer):
                     newtot = pkt['rain_total']
                     pkt['rain'] = self._delta_rain(newtot, self._last_rain)
                     self._last_rain = newtot
+
+                # convert lightning_distance to expected unit
+                if 'lightning_distance' in pkt:
+                    pkt['lightning_distance'] = weewx.units.convert(
+                        (pkt['lightning_distance'], 'km', 'group_distance'),
+                        'mile'
+                    )[0]
 
             except ValueError as e:
                 logerr("parse failed for %s: %s" % (s, e))
