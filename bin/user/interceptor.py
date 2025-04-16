@@ -699,6 +699,19 @@ class Consumer(object):
             return rain - last_rain
 
         @staticmethod
+        def _delta_strikes(strikes, last_strikes):
+            if strikes is None:
+                return None
+            if last_strikes is None:
+                loginf("skipping lightning strikes measurement of %s: no last strikes" % strikes)
+                return None
+            if strikes < last_strikes:
+                loginf("lightning strikes wraparound detected: new=%s last=%s" %
+                       (strikes, last_strikes))
+                return strikes
+            return strikes - last_strikes
+
+        @staticmethod
         def decode_float(x):
             return None if x is None else float(x)
 
@@ -2383,6 +2396,7 @@ class EcowittClient(Consumer):
         def __init__(self):
             self._last_rain = None
             self._rain_mapping_confirmed = False
+            self._last_strikes_total = None
 
         def parse(self, s):
             pkt = dict()
@@ -2435,6 +2449,11 @@ class EcowittClient(Consumer):
                         (pkt['lightning_distance'], 'km', 'group_distance'),
                         'mile'
                     )[0]
+
+                if 'lightning_strike_count' in pkt:
+                    new_strikes_total = pkt['lightning_strike_count']
+                    pkt['lightning_strike_count'] = self._delta_strikes(new_strikes_total, self._last_strikes_total)
+                    self._last_strikes_total = new_strikes_total
 
             except ValueError as e:
                 logerr("parse failed for %s: %s" % (s, e))
