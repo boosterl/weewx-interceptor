@@ -2443,17 +2443,23 @@ class EcowittClient(Consumer):
                     pkt['rain'] = self._delta_rain(newtot, self._last_rain)
                     self._last_rain = newtot
 
-                # convert lightning_distance to expected unit
-                if 'lightning_distance' in pkt:
-                    pkt['lightning_distance'] = weewx.units.convert(
-                        (pkt['lightning_distance'], 'km', 'group_distance'),
-                        'mile'
-                    )[0]
-
                 if 'lightning_strike_count' in pkt:
                     new_strikes_total = pkt['lightning_strike_count']
                     pkt['lightning_strike_count'] = self._delta_strikes(new_strikes_total, self._last_strikes_total)
                     self._last_strikes_total = new_strikes_total
+
+                # convert lightning_distance to expected unit and only parse
+                # distance if there actaully were lightning strikes
+                if (
+                    'lightning_distance' in pkt
+                    and pkt.get('lightning_strike_count')
+                ):
+                    pkt['lightning_distance'] = weewx.units.convert(
+                        (pkt['lightning_distance'], 'km', 'group_distance'),
+                        'mile'
+                    )[0]
+                else:
+                    pkt['lightning_distance'] = None
 
             except ValueError as e:
                 logerr("parse failed for %s: %s" % (s, e))
